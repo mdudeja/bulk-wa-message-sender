@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Next: Node",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev"
+    },
+    {
+      "name": "Next: Browser",
+      "type": "chrome",
+      "request": "launch",
+      "runtimeExecutable": "/usr/bin/brave-browser",
+      "runtimeArgs": ["--remote-debugging-port=9222"],
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Next: Full",
+      "configurations": ["Next: Node", "Next: Browser"]
+    }
+  ]
+}
