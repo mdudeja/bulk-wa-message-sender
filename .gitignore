@@ -38,3 +38,5 @@ next-env.d.ts
 .cache
 uploads/**/*.csv
 user_data
+
+.wwebjs_cache/**/*
