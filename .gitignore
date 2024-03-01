@@ -40,3 +40,6 @@ uploads/**/*.csv
 user_data
 
 .wwebjs_cache/**/*
+!.wwebjs_cache/.gitkeep
+
+database

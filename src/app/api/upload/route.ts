@@ -19,10 +19,15 @@ export async function POST(request: NextRequest) {
   const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
   const filename = `file-${uniqueSuffix}.csv`
   await writeFile(join(uploadDir, filename), buffer)
-  return NextResponse.json({
-    message: "File uploaded successfully",
-    filename,
-  })
+  return NextResponse.json(
+    {
+      message: "File uploaded successfully",
+      filename,
+    },
+    {
+      status: 200,
+    }
+  )
 }
 
 export const config = {

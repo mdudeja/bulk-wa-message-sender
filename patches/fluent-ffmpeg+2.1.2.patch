@@ -5,3 +5,16 @@ index 04e594c..68a1522 100644
 @@ -1 +1 @@
 -module.exports = process.env.FLUENTFFMPEG_COV ? require('./lib-cov/fluent-ffmpeg') : require('./lib/fluent-ffmpeg');
 +module.exports = require('./lib/fluent-ffmpeg');
+diff --git a/node_modules/fluent-ffmpeg/lib/options/misc.js b/node_modules/fluent-ffmpeg/lib/options/misc.js
+index a92f7aa..1ecf30a 100644
+--- a/node_modules/fluent-ffmpeg/lib/options/misc.js
++++ b/node_modules/fluent-ffmpeg/lib/options/misc.js
+@@ -24,7 +24,7 @@ module.exports = function(proto) {
+     } else {
+       try {
+         var modulePath = path.join(this.options.presets, preset);
+-        var module = require(modulePath);
++        var module = require(`${modulePath}`);
+ 
+         if (typeof module.load === 'function') {
+           module.load(this);
