@@ -4,6 +4,8 @@ import "./globals.css"
 import HeaderComponent from "@/components/HeaderComponent"
 import { Toaster } from "@/components/ui/sonner"
 import Providers from "./providers"
+import { Suspense } from "react"
+import LoadingComponent from "@/components/LoadingComponent"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,7 +26,9 @@ export default function RootLayout({
           <HeaderComponent />
         </nav>
         <main className="p-2">
-          <Providers>{children}</Providers>
+          <Providers>
+            <Suspense fallback={<LoadingComponent />}>{children}</Suspense>
+          </Providers>
         </main>
         <Toaster />
       </body>

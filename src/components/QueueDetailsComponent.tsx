@@ -246,7 +246,7 @@ export default function QueueDetailsComponent({
     dispatch({ type: "SET_SOCKET", payload: socket })
 
     toast.success("Connected to message socket server")
-  }, [session, refetch, dispatch])
+  }, [session, state.processed, state.responsesReceived, refetch, dispatch])
 
   if (isPending || isPendingRC || isPendingUA || isPendingRD) {
     return <LoadingComponent />
