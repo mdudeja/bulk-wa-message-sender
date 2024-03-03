@@ -43,3 +43,4 @@ user_data
 !.wwebjs_cache/.gitkeep
 
 database
+ecosystem.config.js
