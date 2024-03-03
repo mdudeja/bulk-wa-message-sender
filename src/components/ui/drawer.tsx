@@ -34,12 +34,20 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
+interface ClosableComponentProps {
+  onClose?: () => void
+}
+
+interface DrawerContentProps
+  extends React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>,
+    ClosableComponentProps {}
+
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
+  DrawerContentProps
 >(({ className, children, ...props }, ref) => (
   <DrawerPortal>
-    <DrawerOverlay />
+    <DrawerOverlay onClick={(e) => props?.onClose?.()} />
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(

@@ -30,6 +30,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { FormEvent } from "react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 
 type AsyncDefaultValues<TFieldValues> = (
   payload?: unknown
@@ -46,17 +48,23 @@ export type TFormComponentField<TFieldValues> = Array<{
     | "email"
     | "password"
     | "file"
+    | "checkbox"
   placeholder?: string
   disabled?: boolean
   hidden?: boolean
   description?: string
   isOptional?: boolean
-  onChange?: (e: FormEvent<HTMLInputElement>) => void
+  onChange?: (e: FormEvent<HTMLInputElement> | boolean) => void
   selectOptions?: {
     label: string
     value: string
   }[]
+  value?: any
 }>
+
+export type TFormComponentCompoundedField<TFieldValues> = {
+  subFields: TFormComponentField<TFieldValues>
+}
 
 export default function FormComponent<
   TSchema extends z.ZodType<any, any, any>
@@ -66,14 +74,20 @@ export default function FormComponent<
   defaultValues,
   formFields,
   disableSubmit,
+  clubFields,
+  clubbedLength,
 }: {
   formSchema: TSchema
   onSubmit: (data: z.infer<TSchema>) => void
   defaultValues?:
     | DefaultValues<z.infer<TSchema>>
     | AsyncDefaultValues<z.infer<TSchema>>
-  formFields: TFormComponentField<z.infer<TSchema>>
+  formFields:
+    | TFormComponentField<z.infer<TSchema>>
+    | TFormComponentCompoundedField<z.infer<TSchema>>
   disableSubmit?: boolean
+  clubFields?: boolean
+  clubbedLength?: number
 }) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -81,6 +95,48 @@ export default function FormComponent<
   })
 
   let submitDisabled = disableSubmit || form.formState.isSubmitting
+
+  const fieldsToRender = Array.isArray(formFields)
+    ? formFields
+    : formFields.subFields
+
+  let renderable: JSX.Element[] | JSX.Element[][] = fieldsToRender.map(
+    (formField, idx) => {
+      return (
+        <FormField
+          key={idx}
+          control={form.control}
+          name={formField.name as Path<TSchema>}
+          render={({ field }) => (
+            <FormItem>
+              {!formField.hidden && (
+                <FormLabel htmlFor={formField.name as string}>
+                  {formField.label}
+                </FormLabel>
+              )}
+              {getControlByInputType(formField, field)}
+              {!formField.hidden && formField.description && (
+                <FormDescription>{formField.description}</FormDescription>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )
+    }
+  )
+
+  if (clubFields && clubbedLength && clubbedLength > 1) {
+    renderable = renderable.reduce(
+      (result: JSX.Element[] | JSX.Element[][], value, index, array) => {
+        if (index % clubbedLength === 0) {
+          result.push(array.slice(index, index + clubbedLength) as any)
+        }
+        return result
+      },
+      []
+    )
+  }
 
   return (
     <Form {...form}>
@@ -92,27 +148,11 @@ export default function FormComponent<
         }}
         className="space-y-8"
       >
-        {formFields.map((formField, idx) => {
+        {renderable.map((field, idx) => {
           return (
-            <FormField
-              key={idx}
-              control={form.control}
-              name={formField.name as Path<TSchema>}
-              render={({ field }) => (
-                <FormItem>
-                  {!formField.hidden && (
-                    <FormLabel htmlFor={formField.name as string}>
-                      {formField.label}
-                    </FormLabel>
-                  )}
-                  {getControlByInputType(formField, field)}
-                  {!formField.hidden && formField.description && (
-                    <FormDescription>{formField.description}</FormDescription>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div key={idx} className="flex flex-row space-x-4">
+              {field}
+            </div>
           )
         })}
         <div className="flex flex-row justify-end">
@@ -184,6 +224,27 @@ function getControlByInputType<TSchema extends z.ZodType<any, any, any>>(
               formField.onChange?.(e)
             }}
           />
+        </FormControl>
+      )
+    case "checkbox":
+      return (
+        <FormControl>
+          <div className="space-x-2">
+            <Checkbox
+              {...field}
+              id={formField.name as string}
+              className={`${formField.hidden ? "hidden" : ""}`}
+              disabled={formField.disabled}
+              checked={
+                formField.value !== undefined ? formField.value : field.value
+              }
+              onCheckedChange={(checked: any) => {
+                field.onChange(checked)
+                formField.onChange?.(checked)
+              }}
+            />
+            <Label htmlFor={formField.name as string}>{formField.label}</Label>
+          </div>
         </FormControl>
       )
     default:

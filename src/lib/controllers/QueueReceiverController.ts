@@ -85,7 +85,8 @@ export const fetchReceiversByQueueIdForFrontend = async (
 }
 
 export const fetchPendingReceiversByQueueId = async (
-  queueId: string
+  queueId: string,
+  limit: number
 ): Promise<TQueueReceiver[] | null> => {
   const connection = await _init()
 
@@ -97,7 +98,7 @@ export const fetchPendingReceiversByQueueId = async (
     queueId: queueId,
     processed: false,
   })
-    .limit(50)
+    .limit(limit ?? 50)
     .exec()
 
   return receivers.map((receiver) => receiver.toJSON())

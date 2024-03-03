@@ -12,7 +12,14 @@ import TableFilterComponent from "./TableFilterComponent"
 import { useEffect, useReducer, useState } from "react"
 import TablePaginationComponent from "./TablePaginationComponent"
 import { Button } from "./ui/button"
-import { XCircle, Delete, Play, Download } from "lucide-react"
+import {
+  XCircle,
+  Delete,
+  ArrowUpRight,
+  Download,
+  CheckCircle,
+  MessageCircleX,
+} from "lucide-react"
 import { TUserDTO } from "@/lib/interfaces/User"
 import { TUserQueue } from "@/lib/interfaces/UserQueues"
 
@@ -55,6 +62,8 @@ export default function TableComponent({
   onDelete,
   onViewDetails,
   onDownloadCSV,
+  disableDelete,
+  disableDownloadCSV,
   truncateLongStrings = false,
 }: {
   tableHeaders: string[]
@@ -64,6 +73,8 @@ export default function TableComponent({
   onDelete?: (index: number) => void
   onViewDetails?: (index: number) => void
   onDownloadCSV?: (index: number) => void
+  disableDelete?: (index: number) => boolean
+  disableDownloadCSV?: (index: number) => boolean
   truncateLongStrings?: boolean
 }) {
   function tableReducer(
@@ -255,7 +266,9 @@ export default function TableComponent({
                             variant="ghost"
                             size="smIcon"
                             onClick={() => onDelete?.(index)}
-                            disabled={row.type === "admin"}
+                            disabled={
+                              row.type === "admin" || disableDelete?.(index)
+                            }
                           >
                             <XCircle className="text-red-500 text-xs" />
                           </Button>
@@ -264,9 +277,8 @@ export default function TableComponent({
                               variant="ghost"
                               size="smIcon"
                               onClick={() => onViewDetails?.(index)}
-                              disabled={row.type === "admin"}
                             >
-                              <Play className="text-blue-500 text-xs" />
+                              <ArrowUpRight className="text-blue-500 text-xs" />
                             </Button>
                           )}
                           {onDownloadCSV && (
@@ -274,12 +286,26 @@ export default function TableComponent({
                               variant="ghost"
                               size="smIcon"
                               onClick={() => onDownloadCSV?.(index)}
-                              disabled={row.type === "admin"}
+                              disabled={disableDownloadCSV?.(index)}
                             >
                               <Download className="text-black-500 text-xs" />
                             </Button>
                           )}
                         </div>
+                      </TableCell>
+                    )
+                  }
+                  if (row[header] === "Yes") {
+                    return (
+                      <TableCell key={header}>
+                        <CheckCircle className="text-green-500 text-xs" />
+                      </TableCell>
+                    )
+                  }
+                  if (row[header] === "No") {
+                    return (
+                      <TableCell key={header}>
+                        <MessageCircleX className="text-red-500 text-xs" />
                       </TableCell>
                     )
                   }

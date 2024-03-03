@@ -1,5 +1,8 @@
 import mongoose from "mongoose"
-import { TUserQueue } from "@/lib/interfaces/UserQueues"
+import {
+  TUserQueue,
+  TUserQueueContentVariations,
+} from "@/lib/interfaces/UserQueues"
 
 const UserQueuesModelSchema = new mongoose.Schema<TUserQueue>(
   {
@@ -27,6 +30,49 @@ const UserQueuesModelSchema = new mongoose.Schema<TUserQueue>(
       required: true,
       minlength: 10,
     },
+    enableVariations: {
+      type: Boolean,
+      default: false,
+    },
+    variations: new mongoose.Schema<TUserQueueContentVariations>(
+      {
+        replacethis: {
+          type: String,
+          required: false,
+        },
+        withthis: {
+          type: String,
+          required: false,
+        },
+        replacethis_1: {
+          type: String,
+          required: false,
+        },
+        withthis_1: {
+          type: String,
+          required: false,
+        },
+        replacethis_2: {
+          type: String,
+          required: false,
+        },
+        withthis_2: {
+          type: String,
+          required: false,
+        },
+        replacethis_3: {
+          type: String,
+          required: false,
+        },
+        withthis_3: {
+          type: String,
+          required: false,
+        },
+      },
+      {
+        _id: false,
+      }
+    ),
   },
   {
     timestamps: true,

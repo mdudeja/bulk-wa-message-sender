@@ -2,19 +2,35 @@ import { GlobalRef } from "@/lib/GlobalRef"
 import { Server, Socket } from "socket.io"
 import { WwebClient } from "@/lib/controllers/WWebClientController"
 import { updateQueueById } from "./UserQueuesController"
+import { randomUUID } from "crypto"
 
 class SocketController {
   clients: {
     for_path: string
     client: Socket
-    client_id: string
     clientUserId?: string
+    sessionId?: string
   }[]
   ios: Server[]
 
   constructor() {
     this.clients = []
     this.ios = []
+  }
+
+  attachMiddleware(server: Server) {
+    server.use((socket, next) => {
+      const sessionId = socket.handshake.auth.sessionID
+      const username = socket.handshake.auth.clientUserId
+
+      if (!username) {
+        return next(new Error("No username found in auth"))
+      }
+
+      ;(socket as any).sessionID = sessionId ?? randomUUID()
+      ;(socket as any).clientUserId = username
+      next()
+    })
   }
 
   init(path: string, port: number) {
@@ -33,22 +49,36 @@ class SocketController {
       },
     }).listen(port)
 
-    server.on("connection", (socket) => {
-      console.log("socket connected", socket.id)
+    this.attachMiddleware(server)
+
+    server.on("connection", async (socket) => {
+      const sessionId = (socket as any).sessionID
+      const clientUserId = (socket as any).clientUserId
+      console.log("socket connected", sessionId, clientUserId)
+
       this.clients.push({
         for_path: path,
         client: socket,
-        client_id: socket.id,
+        clientUserId: clientUserId,
+        sessionId: sessionId,
       })
-      socket.emit("connected", { message: socket.id ?? "" })
+
+      socket.emit("session", {
+        sessionID: sessionId,
+        clientUserId: clientUserId,
+      })
 
       socket.on("disconnect", () => {
         console.log("socket disconnected", socket.id)
-        this.clients = this.clients.filter((c) => c.client_id !== socket.id)
+        this.clients = this.clients.filter(
+          (c) => c.sessionId !== (socket as any).sessionID
+        )
       })
 
       socket.on("clientUserId", async (data) => {
-        const targetClient = this.clients.find((c) => c.client_id === socket.id)
+        const targetClient = this.clients.find(
+          (c) => c.sessionId === (socket as any).sessionID
+        )
         if (!targetClient) {
           return
         }
@@ -59,7 +89,9 @@ class SocketController {
       })
 
       socket.on("processQueue", async (data) => {
-        const targetClient = this.clients.find((c) => c.client_id === socket.id)
+        const targetClient = this.clients.find(
+          (c) => c.sessionId === (socket as any).sessionID
+        )
         if (!targetClient) {
           return
         }
@@ -69,7 +101,9 @@ class SocketController {
 
       socket.on("pauseQueue", async (data) => {
         console.log("pauseQueue", data)
-        const targetClient = this.clients.find((c) => c.client_id === socket.id)
+        const targetClient = this.clients.find(
+          (c) => c.sessionId === (socket as any).sessionID
+        )
         if (!targetClient) {
           return
         }
@@ -79,7 +113,9 @@ class SocketController {
 
       socket.on("resumeQueue", async (data) => {
         console.log("resumeQueue", data)
-        const targetClient = this.clients.find((c) => c.client_id === socket.id)
+        const targetClient = this.clients.find(
+          (c) => c.sessionId === (socket as any).sessionID
+        )
         if (!targetClient) {
           return
         }
@@ -89,7 +125,9 @@ class SocketController {
 
       socket.on("stopQueue", async (data) => {
         console.log("stopQueue", data)
-        const targetClient = this.clients.find((c) => c.client_id === socket.id)
+        const targetClient = this.clients.find(
+          (c) => c.sessionId === (socket as any).sessionID
+        )
         if (!targetClient) {
           return
         }
@@ -101,19 +139,6 @@ class SocketController {
     this.ios.push(server)
 
     console.log(`Socket server started at ${path} on port ${port}`)
-  }
-
-  sendMessage(path: string, clientId: string, event: string, data: any) {
-    const client = this.clients.find(
-      (c) => c.for_path === path && c.client_id === clientId
-    )
-
-    if (!client) {
-      console.log(`No client found for path ${path} and id ${clientId}`)
-      return
-    }
-
-    client.client.emit(event, data)
   }
 
   sendMessageByClientUserIdAndPath(
@@ -144,6 +169,16 @@ class SocketController {
 
   isAuthed(clientUserId: string) {
     return WwebClient.isAuthed(clientUserId)
+  }
+
+  disconnectByClientUserId(clientUserId: string): boolean {
+    const clients = this.clients.filter((c) => c.clientUserId === clientUserId)
+
+    clients.forEach((c) => {
+      c.client.disconnect()
+    })
+
+    return clients.length > 0
   }
 }
 

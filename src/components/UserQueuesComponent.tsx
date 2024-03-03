@@ -16,10 +16,15 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import FormComponent from "@/components/FormComponent"
-import { TUserQueue, UserQueueSchema } from "@/lib/interfaces/UserQueues"
+import {
+  TUserQueue,
+  TUserQueueContentVariations,
+  UserQueueSchema,
+} from "@/lib/interfaces/UserQueues"
 import useSession from "@/lib/hooks/use-session"
 import { FormEvent, useState } from "react"
 import { useRouter } from "next/navigation"
+import ContentVariationsComponent from "./ContentVariationsComponent"
 
 const downloadCSV = async (queueId?: string) => {
   if (!queueId) {
@@ -44,11 +49,34 @@ const downloadCSV = async (queueId?: string) => {
 export default function UserQueuesComponent() {
   const router = useRouter()
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [sheetOpen, setSheetOpen] = useState<boolean>(false)
+  const [showVariationsDialog, setShowVariationsDialog] =
+    useState<boolean>(false)
+  const [variations, setVariations] = useState<TUserQueueContentVariations>({
+    replacethis: "",
+    withthis: "",
+    replacethis_1: "",
+    withthis_1: "",
+    replacethis_2: "",
+    withthis_2: "",
+    replacethis_3: "",
+    withthis_3: "",
+  })
+
   const { session } = useSession()
   const { isPending, isError, data, error, refetch } = useQuery({
     queryKey: ["userQueues"],
     queryFn: () => getUserQueues(),
   })
+
+  const onVariationsSubmit = (data: TUserQueueContentVariations) => {
+    if (!data) {
+      return
+    }
+
+    setVariations(data)
+    setShowVariationsDialog(false)
+  }
 
   const generateQueue = async (values: TUserQueue) => {
     if (!values || !uploadedFile) {
@@ -76,6 +104,7 @@ export default function UserQueuesComponent() {
       method: "POST",
       body: JSON.stringify({
         ...values,
+        variations,
         file: json.filename,
       }),
       headers: {
@@ -89,6 +118,7 @@ export default function UserQueuesComponent() {
     }
 
     toast.success("Queue added successfully")
+    setSheetOpen(false)
     refetch()
   }
 
@@ -105,11 +135,11 @@ export default function UserQueuesComponent() {
     <div className="w-full border border-1 rounded-md p-2 space-y-2">
       <div className="flex flex-row justify-between items-center">
         <h1 className="text-lg">Queues</h1>
-        <Sheet>
+        <Sheet open={sheetOpen}>
           <SheetTrigger asChild>
-            <Button>Create Queue</Button>
+            <Button onClick={() => setSheetOpen(true)}>Create Queue</Button>
           </SheetTrigger>
-          <SheetContent>
+          <SheetContent onClose={() => setSheetOpen(false)}>
             <SheetHeader>
               <SheetTitle>Create Queue</SheetTitle>
               <SheetDescription>
@@ -144,14 +174,29 @@ export default function UserQueuesComponent() {
                       "The message you want to send. Please use {{name}} as a placeholder for the contact's name.",
                   },
                   {
+                    name: "enableVariations",
+                    type: "checkbox",
+                    label: "Enable Variations",
+                    description:
+                      "Enable this to send multiple variations of the message.",
+                    onChange: (
+                      checked: FormEvent<HTMLInputElement> | boolean
+                    ) => {
+                      setShowVariationsDialog(checked as boolean)
+                    },
+                  },
+                  {
                     name: "file",
                     type: "file",
                     label: "Contacts File",
                     placeholder: "Choose File",
                     description:
                       "Choose the contacts CSV file. The file should only have two columns: name and phone. All phone numbers must start with the country code (without the + sign)",
-                    onChange: (e: FormEvent<HTMLInputElement>) => {
-                      setUploadedFile((e.target as any).files[0])
+                    onChange: (e: FormEvent<HTMLInputElement> | boolean) => {
+                      setUploadedFile(
+                        ((e as FormEvent<HTMLInputElement>).target as any)
+                          .files[0]
+                      )
                     },
                   },
                 ]}
@@ -159,9 +204,15 @@ export default function UserQueuesComponent() {
                   username: session?.user.username ?? "",
                   queueName: "",
                   message: "",
-                  file: undefined,
+                  enableVariations: false,
+                  file: "",
                 }}
                 onSubmit={generateQueue}
+              />
+              <ContentVariationsComponent
+                isOpen={showVariationsDialog}
+                onClose={() => setShowVariationsDialog(false)}
+                onSubmit={onVariationsSubmit}
               />
             </div>
           </SheetContent>
@@ -199,6 +250,8 @@ export default function UserQueuesComponent() {
             router.push("/user-queues/" + data[index]?.queueName)
           }}
           onDownloadCSV={async (index) => downloadCSV(data[index]?._id)}
+          disableDelete={(index) => data[index]?.status === "in-progress"}
+          disableDownloadCSV={(index) => data[index]?.status !== "completed"}
         />
       )}
       {data && data.length === 0 && <p>No queues found</p>}

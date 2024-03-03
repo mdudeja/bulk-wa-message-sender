@@ -5,7 +5,7 @@ import LoadingComponent from "@/components/LoadingComponent"
 import { toast } from "sonner"
 import ErrorComponent from "@/components/ErrorComponent"
 import { Button } from "@/components/ui/button"
-import { Pause, Play, StopCircle, Download } from "lucide-react"
+import { Pause, Play, StopCircle, Download, Bot } from "lucide-react"
 import { getRecipientCounts } from "@/app/actions/getRecipientCounts"
 import { useCallback, useEffect, useReducer } from "react"
 import { io } from "socket.io-client"
@@ -14,6 +14,7 @@ import { getRecipientDetails } from "@/app/actions/getRecipientDetails"
 import TableComponent from "./TableComponent"
 import { Socket } from "socket.io-client"
 import useSession from "@/lib/hooks/use-session"
+import { NavigationSocketDisconnect } from "./NavigationSocketDisconnect"
 
 type detailsStateType = {
   total: number
@@ -114,7 +115,7 @@ export default function QueueDetailsComponent({
     data: dataRC,
     error: errorRC,
   } = useQuery({
-    queryKey: ["recipientCounts"],
+    queryKey: ["recipientCounts", queueName],
     queryFn: () => getRecipientCounts(data?._id),
     enabled: !isPending && !isError,
   })
@@ -156,13 +157,6 @@ export default function QueueDetailsComponent({
   }, [dataRC, dataRD])
 
   const connectSocket = useCallback(async () => {
-    if (!session || !session?.user?.username) {
-      setTimeout(() => {
-        connectSocket()
-      }, 1000)
-      return
-    }
-
     const res = await fetch("/api/socket?purpose=messages")
 
     if (res.status !== 200) {
@@ -170,10 +164,21 @@ export default function QueueDetailsComponent({
       return
     }
 
-    toast.success("Connected to message socket server")
+    if (!session || !session.user?.username?.length) {
+      toast.error("Logged in user information missing. Please try again!")
+      return
+    }
 
     const socket = io(`:${process.env.NEXT_PUBLIC_MESSAGE_SOCKET_PORT}`, {
       path: process.env.NEXT_PUBLIC_MESSAGE_SOCKET_SERVER,
+      autoConnect: false,
+      transports: ["websocket"],
+    })
+
+    socket.on("session", ({ sessionID, clientUserId }) => {
+      socket.auth = { sessionID, clientUserId }
+      sessionStorage.setItem("socketSessionID_messages", sessionID)
+      ;(socket as any).clientUserId = clientUserId
     })
 
     socket.on("connect", () => {
@@ -201,10 +206,12 @@ export default function QueueDetailsComponent({
           value: [true, d.ack !== -1],
         },
       })
-      dispatch({
-        type: "SET_PROCESSED",
-        payload: state.processed + 1,
-      })
+      setTimeout(() => {
+        dispatch({
+          type: "SET_PROCESSED",
+          payload: state.processed + 1,
+        })
+      }, 500)
     })
 
     socket.on("responseReceived", (d) => {
@@ -227,18 +234,19 @@ export default function QueueDetailsComponent({
       refetch()
     })
 
+    socket.auth = {
+      clientUserId: session?.user?.username,
+      sessionID:
+        sessionStorage.getItem("socketSessionID_messages") === "undefined"
+          ? undefined
+          : sessionStorage.getItem("socketSessionID_messages"),
+    }
     socket.connect()
 
     dispatch({ type: "SET_SOCKET", payload: socket })
 
-    return socket
-  }, [queueName, data, session])
-
-  useEffect(() => {
-    if (data && !state.socket) {
-      connectSocket()
-    }
-  }, [data, state.socket, connectSocket])
+    toast.success("Connected to message socket server")
+  }, [session, refetch, dispatch])
 
   if (isPending || isPendingRC || isPendingUA || isPendingRD) {
     return <LoadingComponent />
@@ -269,15 +277,15 @@ export default function QueueDetailsComponent({
               !data ||
               data.status === "completed" ||
               data.status === "in-progress" ||
+              !state.socket ||
               !dataUA ||
               !dataUA.userAuthed
             }
             onClick={async () => {
-              const socket = state.socket ?? (await connectSocket())
               if (data.status === "paused") {
-                socket?.emit("resumeQueue", { queueId: data._id ?? "" })
+                state.socket?.emit("resumeQueue", { queueId: data._id ?? "" })
               }
-              socket?.emit("processQueue", { queueId: data._id ?? "" })
+              state.socket?.emit("processQueue", { queueId: data._id ?? "" })
               refetch()
             }}
           >
@@ -287,10 +295,9 @@ export default function QueueDetailsComponent({
             variant="ghost"
             size="smIcon"
             className="text-blue-500 disabled:text-gray-500"
-            disabled={!data || data.status !== "in-progress"}
+            disabled={!data || data.status !== "in-progress" || !state.socket}
             onClick={async () => {
-              const socket = state.socket ?? (await connectSocket())
-              socket?.emit("pauseQueue", { queueId: data._id ?? "" })
+              state.socket?.emit("pauseQueue", { queueId: data._id ?? "" })
               refetch()
             }}
           >
@@ -300,10 +307,9 @@ export default function QueueDetailsComponent({
             variant="ghost"
             size="smIcon"
             className="text-red-500 disabled:text-gray-500"
-            disabled={!data || data.status !== "in-progress"}
+            disabled={!data || data.status !== "in-progress" || !state.socket}
             onClick={async () => {
-              const socket = state.socket ?? (await connectSocket())
-              socket?.emit("stopQueue", { queueId: data._id ?? "" })
+              state.socket?.emit("stopQueue", { queueId: data._id ?? "" })
               refetch()
             }}
           >
@@ -317,6 +323,15 @@ export default function QueueDetailsComponent({
             onClick={() => downloadVCF(data._id)}
           >
             <Download className="w-16 h-16" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="smIcon"
+            className="disabled:text-gray-500"
+            disabled={state.socket}
+            onClick={() => connectSocket()}
+          >
+            <Bot className="w-16 h-16" />
           </Button>
         </div>
       </div>
@@ -339,6 +354,7 @@ export default function QueueDetailsComponent({
           "responses",
         ]}
       />
+      <NavigationSocketDisconnect />
     </div>
   )
 }

@@ -18,8 +18,9 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import QRCodeDisplayerComponent from "./QRCodeDisplayer"
+import { NavigationSocketDisconnect } from "./NavigationSocketDisconnect"
 
-export default function UserStatsComponent() {
+export default function UserAuthedComponent() {
   const { session } = useSession()
   const { isPending, isError, data, error, refetch } = useQuery({
     queryKey: ["userAuthed"],
@@ -27,6 +28,7 @@ export default function UserStatsComponent() {
   })
   const [qr, setQr] = useState<string>("")
   const [authed, setAuthed] = useState<boolean>(false)
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false)
 
   const connectSocketForQRCode = useCallback(async () => {
     if (!session || !session?.user?.username) {
@@ -47,6 +49,14 @@ export default function UserStatsComponent() {
 
     const socket = io(`:${process.env.NEXT_PUBLIC_QRCODE_SOCKET_PORT}`, {
       path: process.env.NEXT_PUBLIC_QRCODE_SOCKET_SERVER,
+      autoConnect: false,
+      transports: ["websocket"],
+    })
+
+    socket.on("session", ({ sessionID, clientUserId }) => {
+      socket.auth = { sessionID, clientUserId }
+      sessionStorage.setItem("socketSessionID_qr", sessionID)
+      ;(socket as any).clientUserId = clientUserId
     })
 
     socket.on("connect", () => {
@@ -68,6 +78,7 @@ export default function UserStatsComponent() {
     socket.on("isReady", (data) => {
       if (data) {
         toast.success("Authentication successful")
+        setDrawerOpen(false)
         refetch()
       }
       setAuthed(data)
@@ -78,8 +89,22 @@ export default function UserStatsComponent() {
       toast.error(`Error connecting to socket server: ${err.message}`)
     })
 
+    socket.on("error", async (err) => {
+      toast.error(err.message)
+      setQr("")
+      setDrawerOpen(false)
+      socket.disconnect()
+    })
+
+    socket.auth = {
+      clientUserId: session?.user?.username,
+      sessionID:
+        sessionStorage.getItem("socketSessionID_qr") === "undefined"
+          ? undefined
+          : sessionStorage.getItem("socketSessionID_qr"),
+    }
     socket.connect()
-  }, [session, setQr])
+  }, [session, setQr, setAuthed, setDrawerOpen, refetch])
 
   if (isPending) {
     return <LoadingComponent />
@@ -95,9 +120,17 @@ export default function UserStatsComponent() {
       {!data?.userAuthed && (
         <div className="w-full flex flex-row items-center justify-between">
           <p>No linked number found</p>
-          <Drawer>
+          <Drawer open={drawerOpen}>
             <DrawerTrigger asChild>
-              <Button onClick={connectSocketForQRCode}>Link Number</Button>
+              <Button
+                onClick={() => {
+                  setDrawerOpen(true)
+                  connectSocketForQRCode()
+                }}
+                disabled={drawerOpen}
+              >
+                Link Number
+              </Button>
             </DrawerTrigger>
             <DrawerContent>
               <div className="mx-auto w-full h-4/6">
@@ -121,6 +154,7 @@ export default function UserStatsComponent() {
           <h1>WhatsApp is Authenticated</h1>
         </div>
       )}
+      <NavigationSocketDisconnect />
     </div>
   )
 }

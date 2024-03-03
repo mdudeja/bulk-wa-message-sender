@@ -9,17 +9,20 @@ import {
 import { TUserQueue } from "../interfaces/UserQueues"
 import { fetchQueueById, updateQueueById } from "./UserQueuesController"
 
+type TClientItem = {
+  id: string
+  client?: Client
+  authed?: boolean
+  ready?: boolean
+  in_progress?: boolean
+  currentQueueId?: string
+  promiseGenerators?: (() => Promise<void>)[]
+  is_paused?: boolean
+  qrcodesCount: number
+}
+
 class WWebClient {
-  private clients: {
-    id: string
-    client?: Client
-    authed?: boolean
-    ready?: boolean
-    in_progress?: boolean
-    currentQueueId?: string
-    promiseGenerators?: (() => Promise<void>)[]
-    is_paused?: boolean
-  }[]
+  private clients: TClientItem[]
 
   constructor() {
     this.clients = []
@@ -31,12 +34,33 @@ class WWebClient {
     }
 
     client.on("qr", (qr) => {
+      const targetClient = this.clients.find((c) => c.id === clientId)
+
+      if (!targetClient) {
+        return
+      }
+
+      if (targetClient.qrcodesCount > 3) {
+        socketController.sendMessageByClientUserIdAndPath(
+          "/socket/qr",
+          clientId,
+          "error",
+          "Failed to generate QR code"
+        )
+        targetClient.client?.destroy()
+        this.clients = this.clients.filter((c) => c.id !== clientId)
+        return
+      }
+
       socketController.sendMessageByClientUserIdAndPath(
         "/socket/qr",
         clientId,
         "qr",
         qr
       )
+
+      targetClient.qrcodesCount += 1
+      this.updateClients(targetClient)
     })
 
     client.on("authenticated", () => {
@@ -120,19 +144,57 @@ class WWebClient {
 
     const c = await this.attachListeners(client, clientId)
 
-    this.clients.push({ id: clientId, client: c })
+    this.clients.push({ id: clientId, client: c, qrcodesCount: 0 })
   }
 
-  updateClients(clientItem: {
-    id: string
-    client?: Client
-    authed?: boolean
-    ready?: boolean
-    in_progress?: boolean
-  }) {
+  updateClients(clientItem: TClientItem) {
     this.clients = this.clients.map((c) =>
       c.id === clientItem.id ? clientItem : c
     )
+  }
+
+  getMessageVariations(queue: TUserQueue, howMany: number): string[] {
+    if (!queue.enableVariations || !queue.variations) {
+      const unformattedMessages = []
+      for (let i = 0; i < howMany; i++) {
+        unformattedMessages.push(queue.message)
+      }
+      return unformattedMessages
+    }
+
+    const formatter = Object.entries(queue.variations)
+      .reduce((acc: string[][], variation) => {
+        if (variation[0].includes("replacethis")) {
+          return [
+            ...acc,
+            [
+              variation[1],
+              (queue.variations as any)?.[
+                variation[0].replace("replace", "with")
+              ] as string,
+            ],
+          ]
+        }
+        return acc
+      }, [])
+      .filter((v) => v.length > 0 && v[0]?.length > 0 && v[1]?.length > 0)
+
+    let formattedMessages: string[] = []
+
+    for (let i = 0; i < howMany; i++) {
+      let message = queue.message
+
+      formatter.forEach((v) => {
+        const options = v[1].split("|")
+        const randomIndex = Math.floor(Math.random() * (options.length + 1))
+        if (randomIndex < options.length) {
+          message = message.replace(new RegExp(v[0], "g"), options[randomIndex])
+        }
+        formattedMessages.push(message)
+      })
+    }
+
+    return formattedMessages
   }
 
   async processQueue(clientId: string, queueId: string): Promise<void> {
@@ -184,7 +246,7 @@ class WWebClient {
       return
     }
 
-    const contacts = await fetchPendingReceiversByQueueId(queue._id ?? "")
+    const contacts = await fetchPendingReceiversByQueueId(queue._id ?? "", 5)
 
     if (!contacts) {
       socketController.sendMessageByClientUserIdAndPath(
@@ -205,18 +267,28 @@ class WWebClient {
       )
 
       await updateQueueById(queue._id ?? "", { status: "completed" })
+      clientItem.in_progress = false
+      this.updateClients(clientItem)
 
       return
     }
 
-    clientItem.promiseGenerators = contacts.map((contact) => {
+    const messagesToSend = this.getMessageVariations(queue, contacts.length)
+
+    clientItem.promiseGenerators = contacts.map((contact, idx) => {
       return () =>
         new Promise<void>(async (resolve) =>
           setTimeout(async () => {
+            if (!messagesToSend[idx]) {
+              console.log("NO MESSAGE TO SEND")
+              resolve()
+              return
+            }
+
             console.log("SENDING MESSAGE TO", contact.name, contact.phoneNumber)
             const res = await client.sendMessage(
               contact.phoneNumber + "@c.us",
-              queue.message.replace(/{{name}}/g, contact.name ?? "")
+              messagesToSend[idx].replace(/{{name}}/g, contact.name ?? "")
             )
             socketController.sendMessageByClientUserIdAndPath(
               "/socket/messages",
