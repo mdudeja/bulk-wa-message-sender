@@ -169,9 +169,10 @@ export default function QueueDetailsComponent({
       return
     }
 
-    const socket = io(`:${process.env.NEXT_PUBLIC_MESSAGE_SOCKET_PORT}`, {
+    const socket = io({
       path: process.env.NEXT_PUBLIC_MESSAGE_SOCKET_SERVER,
       autoConnect: false,
+      addTrailingSlash: false,
       transports: ["websocket"],
     })
 

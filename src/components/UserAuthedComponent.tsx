@@ -47,9 +47,10 @@ export default function UserAuthedComponent() {
 
     toast.info("Fetching QR Code...")
 
-    const socket = io(`:${process.env.NEXT_PUBLIC_QRCODE_SOCKET_PORT}`, {
+    const socket = io({
       path: process.env.NEXT_PUBLIC_QRCODE_SOCKET_SERVER,
       autoConnect: false,
+      addTrailingSlash: false,
       transports: ["websocket"],
     })
 
