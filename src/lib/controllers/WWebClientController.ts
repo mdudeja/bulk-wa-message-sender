@@ -139,7 +139,7 @@ class WWebClient {
     const client = new Client({
       authStrategy: new NoAuth(),
       puppeteer: {
-        args: ["--no-sandbox"],
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
       },
     })
 
