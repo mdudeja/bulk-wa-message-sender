@@ -249,7 +249,7 @@ class WWebClient {
       return
     }
 
-    const contacts = await fetchPendingReceiversByQueueId(queue._id ?? "", 5)
+    const contacts = await fetchPendingReceiversByQueueId(queue._id ?? "", 50)
 
     if (!contacts) {
       socketController.sendMessageByClientUserIdAndPath(
