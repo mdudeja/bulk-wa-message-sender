@@ -41,10 +41,7 @@ const QueueReceiverModelSchema = new mongoose.Schema<TQueueReceiver>(
   }
 )
 
-QueueReceiverModelSchema.index(
-  { queueId: 1, phoneNumber: 1 },
-  { unique: false }
-)
+QueueReceiverModelSchema.index({ queueId: 1, phoneNumber: 1 }, { unique: true })
 
 export default mongoose.models.QueueReceivers ||
   mongoose.model<TQueueReceiver>("QueueReceivers", QueueReceiverModelSchema)

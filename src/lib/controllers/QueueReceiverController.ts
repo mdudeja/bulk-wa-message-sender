@@ -57,7 +57,9 @@ export const fetchReceiversByQueueId = async (
     return null
   }
 
-  const receivers = await QueueReceiverModel.find({ queueId: queueId }).exec()
+  const receivers = await QueueReceiverModel.find({ queueId: queueId })
+    .sort({ _id: 1 })
+    .exec()
 
   return receivers.map((receiver) => receiver.toJSON())
 }
@@ -73,7 +75,9 @@ export const fetchReceiversByQueueIdForFrontend = async (
 
   const receivers = await QueueReceiverModel.find({
     queueId: queueId,
-  }).exec()
+  })
+    .sort({ _id: 1 })
+    .exec()
 
   return receivers.map((receiver) => ({
     name: receiver.name,
@@ -98,6 +102,7 @@ export const fetchPendingReceiversByQueueId = async (
     queueId: queueId,
     processed: false,
   })
+    .sort({ _id: 1 })
     .limit(limit ?? 50)
     .exec()
 
